@@ -1,0 +1,21 @@
+const express = require('express');
+const router = express.Router();
+const userController = require('../controllers/userController');
+const alertController = require('../controllers/alertController');
+const dataController = require('../controllers/dataController');
+const reportController = require('../controllers/reportController');
+
+// User routes
+router.get('/user/:id', userController.getUser);
+
+// Alert routes
+router.get('/alerts', alertController.getAlerts);
+router.get('/alerts/:id', alertController.getAlertById);
+
+// Environmental data route
+router.get('/data', dataController.getEnvironmentalData);
+
+// Report route
+router.post('/report', reportController.submitReport);
+
+module.exports = router;
