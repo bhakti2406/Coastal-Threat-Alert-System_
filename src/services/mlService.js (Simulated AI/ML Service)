@@ -1,0 +1,93 @@
+// src/services/mlService.js
+const Alert = require('../models/Alert');
+const Data = require('../models/Data');
+
+let lastEnvironmentalData = {
+  seaLevel: { value: 2.34, trend: '+0.12', unit: 'm', status: 'rising' },
+  windSpeed: { value: 68, trend: '+15', unit: 'km/h', status: 'increasing' },
+  temperature: { value: 31.2, trend: '+2.1', unit: '°C', status: 'rising' },
+  humidity: { value: 87, trend: '+8', unit: '%', status: 'high' },
+  pressure: { value: 996.2, trend: '-4.8', unit: 'hPa', status: 'dropping' },
+  waveHeight: { value: 3.8, trend: '+1.2', unit: 'm', status: 'rough' },
+  waterQuality: { value: 'Poor', trend: 'declining', unit: 'AQI 165', status: 'unhealthy' },
+  visibility: { value: 2.1, trend: '-1.3', unit: 'km', status: 'poor' }
+};
+
+// Seed initial alerts
+const seedAlerts = async () => {
+  const existingAlerts = await Alert.countDocuments();
+  if (existingAlerts === 0) {
+    await Alert.insertMany([
+      {
+        type: 'cyclone', severity: 'critical', title: 'Severe Cyclonic Storm "Biparjoy"',
+        description: 'Category 3 cyclone with sustained winds of 120 km/h approaching Kutch coast',
+        eta: '4 hours 30 minutes', distance: '32 km NW', confidence: 94, affectedPopulation: '2.3M',
+        evacuationZones: ['Zone A (0-2km)', 'Zone B (2-5km)', 'Zone C (5-10km)'],
+        emergencyContacts: ['108 - Disaster Response', '1070 - Cyclone Warning'],
+        source: 'IMD Gandhinagar', aiPrediction: true
+      },
+      {
+        type: 'tsunami', severity: 'high', title: 'Tsunami Advisory',
+        description: 'Minor tsunami waves (0.5-1m) possible due to seismic activity',
+        eta: '45 minutes', distance: '180 km SW', confidence: 78, affectedPopulation: '850K',
+        evacuationZones: ['Coastal Zone (0-500m)'], source: 'INCOIS Hyderabad', aiPrediction: false
+      }
+    ]);
+    console.log('Initial alerts seeded.');
+  }
+};
+
+const simulateRealTimeUpdates = (io) => {
+  seedAlerts();
+
+  setInterval(async () => {
+    // 1. Simulate environmental data changes
+    const newWindSpeed = lastEnvironmentalData.windSpeed.value + (Math.random() - 0.5) * 5;
+    const newSeaLevel = lastEnvironmentalData.seaLevel.value + (Math.random() - 0.5) * 0.1;
+    
+    lastEnvironmentalData = {
+      ...lastEnvironmentalData,
+      windSpeed: { 
+        ...lastEnvironmentalData.windSpeed, 
+        value: Math.max(0, newWindSpeed),
+        trend: (newWindSpeed > lastEnvironmentalData.windSpeed.value ? '+' : '-') + Math.floor(Math.abs(newWindSpeed - lastEnvironmentalData.windSpeed.value)).toFixed(1)
+      },
+      seaLevel: {
+        ...lastEnvironmentalData.seaLevel,
+        value: Math.max(0, newSeaLevel),
+        trend: (newSeaLevel > lastEnvironmentalData.seaLevel.value ? '+' : '-') + (Math.abs(newSeaLevel - lastEnvironmentalData.seaLevel.value)).toFixed(2)
+      }
+    };
+
+    // Save the new data to the database
+    await Data.create(lastEnvironmentalData);
+
+    // Emit real-time updates to all connected clients
+    io.emit('environmentalData', lastEnvironmentalData);
+
+    // 2. Simulate AI/ML-powered alerts
+    if (Math.random() > 0.8) { // 20% chance to generate a new alert
+      const newAlert = {
+        type: Math.random() > 0.5 ? 'cyclone' : 'tsunami',
+        severity: 'critical',
+        title: 'New AI Alert: Intensity Update',
+        description: 'AI model predicts a significant increase in storm surge height. Take shelter immediately.',
+        eta: '10 minutes',
+        distance: '5 km NE',
+        confidence: Math.floor(Math.random() * 20) + 80,
+        affectedPopulation: '50K',
+        evacuationZones: ['Coastal Zone A'],
+        emergencyContacts: ['108'],
+        source: 'AI Predictive Model',
+        aiPrediction: true,
+        timestamp: new Date()
+      };
+
+      await Alert.create(newAlert);
+      io.emit('newAlert', newAlert); // Emit the new alert to clients
+    }
+
+  }, 8000);
+};
+
+module.exports = { simulateRealTimeUpdates };
