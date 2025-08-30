@@ -1,0 +1,25 @@
+const User = require('../models/User');
+
+exports.getUser = async (req, res) => {
+  try {
+    // Find a specific user, or create a default one for demo purposes
+    let user = await User.findOne({ name: 'Vidhi' });
+    if (!user) {
+      user = await User.create({
+        name: 'Vidhi',
+        points: 1250,
+        level: 'Ocean Guardian',
+        gamification: {
+          todayReports: 3,
+          weeklyGoal: 10,
+          badges: ['First Reporter', 'Weather Watcher', 'Community Hero'],
+          streak: 7,
+          leaderboardRank: 23
+        }
+      });
+    }
+    res.status(200).json(user);
+  } catch (err) {
+    res.status(500).json({ message: 'Error fetching user data', error: err.message });
+  }
+};
