@@ -234,4 +234,82 @@ router.delete('/:id', authenticateToken, async (req, res) => {
     // Broadcast deactivation
     req.app.locals.io.emit('alert_deactivated', { alertId: alert._id });
     
-    res.json({ message: 'Alert deactivated successfully'
+    res.json({ message: 'Alert deactivated successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Helper functions
+async function notifyAffectedUsers(alert) {
+  try {
+    const affectedUsers = await User.find({
+      'location.coordinates': {
+        $geoWithin: {
+          $centerSphere: [
+            alert.coordinates.coordinates,
+            alert.radius / 6378.1
+          ]
+        }
+      },
+      'preferences.notifications.push': true
+    });
+    
+    const notificationPromises = affectedUsers.map(user => {
+      return NotificationService.sendPushNotification(user._id, {
+        title: `${alert.severity.toUpperCase()} ALERT: ${alert.title}`,
+        message: alert.description,
+        type: 'alert',
+        priority: alert.severity,
+        actionUrl: `/alerts/${alert._id}`,
+        metadata: { alertId: alert._id }
+      });
+    });
+    
+    await Promise.all(notificationPromises);
+  } catch (error) {
+    console.error('Error notifying affected users:', error);
+  }
+}
+
+async function calculateEconomicImpact(alert) {
+  // Simplified economic impact calculation
+  const baseImpact = {
+    low: 1000000,
+    medium: 5000000,
+    high: 20000000,
+    critical: 100000000
+  };
+  
+  return {
+    estimated: baseImpact[alert.severity] || 1000000,
+    currency: 'INR',
+    sectors: ['fishing', 'tourism', 'shipping', 'agriculture']
+  };
+}
+
+async function getHistoricalComparison(alert) {
+  const historicalAlerts = await Alert.find({
+    type: alert.type,
+    severity: alert.severity,
+    coordinates: {
+      $geoWithin: {
+        $centerSphere: [
+          alert.coordinates.coordinates,
+          100 / 6378.1 // 100km radius
+        ]
+      }
+    },
+    createdAt: { 
+      $gte: new Date(Date.now() - 5 * 365 * 24 * 60 * 60 * 1000) // Last 5 years
+    }
+  });
+  
+  return {
+    similarEvents: historicalAlerts.length,
+    averageConfidence: historicalAlerts.reduce((sum, a) => sum + a.confidence, 0) / historicalAlerts.length || 0,
+    lastSimilar: historicalAlerts[0]?.createdAt
+  };
+}
+
+module.exports = router;
